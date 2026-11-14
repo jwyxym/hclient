@@ -47,6 +47,10 @@
 //! Windows rows are one binary, resolved at run time, which is why
 //! [`support()`] is a function and not a constant.
 //!
+//! Android also resolves its DNS entry points at run time. Below API 29,
+//! or if either entry point is missing, [`support()`] allows no record
+//! types and [`lookup`] returns [`Error::Unsupported`].
+//!
 //! Three more limits worth knowing before reading an empty answer as
 //! *nothing there*: Apple reports "no such name" and "no such record"
 //! with one code, so [`Error::NameDoesNotExist`] is unreachable there and
@@ -400,7 +404,7 @@ impl Support {
         }
     }
 
-    /// No backend on this target: [`lookup`] answers [`Error::Unsupported`]
+	/// No backend on this target or device: [`lookup`] answers [`Error::Unsupported`]
     /// for every type.
     ///
     /// The empty range is written once, here, rather than at each site
@@ -419,14 +423,14 @@ impl Support {
 
     /// Whether [`lookup`] can be asked for `rtype` on this build.
     ///
-    /// Asking anyway is not undefined — it is [`Error::UnsupportedType`],
-    /// naming the type. This exists so a caller can choose a different
-    /// route before spending a query rather than after.
+	/// Asking anyway returns [`Error::Unsupported`] if no backend is
+	/// available, or [`Error::UnsupportedType`] for a refused record type.
+	/// This lets a caller choose another route before spending a query.
     ///
     /// ```
-    /// // RR type 1 is A (RFC 1035 §3.4.1) and is answerable everywhere
-    /// // this crate has a backend at all.
-    /// assert!(system_resolver::support().allows(1));
+	/// // RR type 1 is A (RFC 1035 §3.4.1). False if no backend is available,
+	/// // including Android devices below API 29.
+	/// let supports_a: bool = system_resolver::support().allows(1);
     /// ```
     #[must_use]
     pub fn allows(&self, rtype: u16) -> bool {
@@ -436,11 +440,10 @@ impl Support {
 
 /// What this build can be asked for; see [`Support`].
 ///
-/// **A function rather than a constant, because on Windows the answer is
-/// genuinely a run-time one** — one binary, two answers, depending on
-/// whether the machine it is running on exports `DnsQueryRaw`. The crate
-/// root's [Windows 10](crate#windows-10) section is why. Everywhere else
-/// this is decided by the build and the call is free.
+/// Windows checks for `DnsQueryRaw` at run time; see the crate root's
+/// [Windows 10](crate#windows-10) section. Android checks for both API 29
+/// DNS entry points and reports no support when either is missing.
+/// Elsewhere this is decided by the build.
 ///
 /// The answer is resolved once and cached: it cannot change while the
 /// process runs.
@@ -460,7 +463,9 @@ pub fn support() -> Support {
 ///
 /// # Errors
 ///
-/// [`Error::UnsupportedType`] where [`support()`] says so, without a query.
+/// [`Error::Unsupported`] when no backend is available on this device, or
+/// [`Error::UnsupportedType`] when [`support()`] refuses this record type,
+/// without a query in either case.
 /// Otherwise whatever the platform reported, or [`Error::Malformed`] if
 /// what came back is not a DNS answer this crate can walk.
 pub fn lookup(name: &str, rtype: u16) -> Result<Vec<Record>, Error> {

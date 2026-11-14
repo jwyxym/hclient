@@ -44,9 +44,8 @@ pub enum Error {
         name: String,
     },
 
-    /// This build has no backend at all — see **nothing at all**.
-    ///
-    /// **nothing at all**: `crate::Support::None`
+	/// No backend is available on this target or device, including Android
+	/// devices without the API 29 DNS entry points.
     #[error("no system resolver backend on this target")]
     Unsupported,
 
